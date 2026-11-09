@@ -46,9 +46,7 @@ jobs:
 
           }
 
-          Expand-Archive -Path $zip.FullName `
-
-            -DestinationPath source -Force
+Expand-Archive -LiteralPath $zip.FullName -DestinationPath source -Force
 
           $package = Get-ChildItem -Path source `
 
