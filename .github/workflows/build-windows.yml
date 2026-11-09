@@ -1,0 +1,61 @@
+name: 编译 Windows EXE
+
+on:
+
+  workflow_dispatch:
+
+  push:
+
+    branches: [main, master]
+
+jobs:
+
+  build:
+
+    runs-on: windows-latest
+
+    steps:
+
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+
+        with:
+
+          node-version: 20
+
+      - name: 解压源码
+
+        shell: pwsh
+
+        run: |
+
+          $zip = Get-ChildItem -Filter "*.zip" | Select-Object -First 1
+
+          Expand-Archive -Path $zip.FullName -DestinationPath "source" -Force
+
+          $project = Get-ChildItem "source" -Directory | Select-Object -First 1
+
+          "PROJECT_DIR=$($project.FullName)" >> $env:GITHUB_ENV
+
+      - name: 安装依赖
+
+        run: npm install
+
+        working-directory: ./source/轻账本_少女手账智能财务版
+
+      - name: 编译 EXE
+
+        run: npm run dist
+
+        working-directory: ./source/轻账本_少女手账智能财务版
+
+      - name: 保存编译结果
+
+        uses: actions/upload-artifact@v4
+
+        with:
+
+          name: 轻账本-Windows-EXE
+
+          path: source/轻账本_少女手账智能财务版/dist/*
