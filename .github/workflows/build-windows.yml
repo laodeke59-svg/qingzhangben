@@ -36,9 +36,7 @@ jobs:
 
           New-Item -ItemType Directory -Force -Path source | Out-Null
 
-          $zip = Get-ChildItem -Path . -Filter "*.zip" |
-
-            Select-Object -First 1
+          $zip = Get-ChildItem -Path . -File -Filter "*.zip" | Select-Object -First 1
 
           if (-not $zip) {
 
@@ -46,25 +44,23 @@ jobs:
 
           }
 
-Expand-Archive -LiteralPath $zip.FullName -DestinationPath source -Force
+          Write-Host "找到压缩包：$($zip.Name)"
 
-          $package = Get-ChildItem -Path source `
+          Expand-Archive -LiteralPath $zip.FullName -DestinationPath source -Force
 
-            -Filter "package.json" -Recurse |
-
-            Select-Object -First 1
+          $package = Get-ChildItem -Path source -Filter "package.json" -Recurse -File | Select-Object -First 1
 
           if (-not $package) {
 
-            throw "没有找到 package.json"
+            throw "解压后没有找到 package.json"
 
           }
 
           $project = $package.Directory.FullName
 
-          "PROJECT_DIR=$project" >> $env:GITHUB_ENV
-
           Write-Host "项目目录：$project"
+
+          "PROJECT_DIR=$project" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
       - name: 修复安装程序配置
 
@@ -74,19 +70,27 @@ Expand-Archive -LiteralPath $zip.FullName -DestinationPath source -Force
 
           $p = Join-Path $env:PROJECT_DIR "package.json"
 
-          $j = Get-Content $p -Raw | ConvertFrom-Json
+          $j = Get-Content -LiteralPath $p -Raw | ConvertFrom-Json
 
           if (-not $j.build.nsis) {
 
-            throw "package.json 中没有找到 nsis 配置"
+            throw "没有找到 package.json 中的 build.nsis 配置"
 
           }
 
           $j.build.nsis.oneClick = $false
 
-          $j | ConvertTo-Json -Depth 100 |
+          $json = $j | ConvertTo-Json -Depth 100
 
-            Set-Content $p -Encoding UTF8
+          [System.IO.File]::WriteAllText(
+
+            $p,
+
+            $json,
+
+            [System.Text.UTF8Encoding]::new($false)
+
+          )
 
       - name: 安装项目依赖
 
