@@ -16,53 +16,101 @@ jobs:
 
     steps:
 
-      - uses: actions/checkout@v4
+      - name: 获取项目源码
 
-      - uses: actions/setup-node@v4
+        uses: actions/checkout@v4
+
+      - name: 配置 Node.js
+
+        uses: actions/setup-node@v4
 
         with:
 
           node-version: 20
 
-      - name: 解压源码
+      - name: 解压项目源码
 
         shell: pwsh
 
         run: |
 
-          $zip = Get-ChildItem -Filter "*.zip" | Select-Object -First 1
+          New-Item -ItemType Directory -Force -Path source | Out-Null
 
-          Expand-Archive -Path $zip.FullName -DestinationPath "source" -Force
+          $zip = Get-ChildItem -Path . -Filter "*.zip" |
 
-          $project = Get-ChildItem "source" -Directory | Select-Object -First 1
+            Select-Object -First 1
 
-          "PROJECT_DIR=$($project.FullName)" >> $env:GITHUB_ENV
-name: 修复安装程序配置
+          if (-not $zip) {
+
+            throw "没有找到项目 ZIP 压缩包"
+
+          }
+
+          Expand-Archive -Path $zip.FullName `
+
+            -DestinationPath source -Force
+
+          $package = Get-ChildItem -Path source `
+
+            -Filter "package.json" -Recurse |
+
+            Select-Object -First 1
+
+          if (-not $package) {
+
+            throw "没有找到 package.json"
+
+          }
+
+          $project = $package.Directory.FullName
+
+          "PROJECT_DIR=$project" >> $env:GITHUB_ENV
+
+          Write-Host "项目目录：$project"
+
+      - name: 修复安装程序配置
 
         shell: pwsh
 
         run: |
 
-          $p = "source/轻账本_少女手账智能财务版/package.json"
+          $p = Join-Path $env:PROJECT_DIR "package.json"
 
           $j = Get-Content $p -Raw | ConvertFrom-Json
 
+          if (-not $j.build.nsis) {
+
+            throw "package.json 中没有找到 nsis 配置"
+
+          }
+
           $j.build.nsis.oneClick = $false
 
-          $j | ConvertTo-Json -Depth 100 | Set-Content $p -Encoding UTF8
-      - name: 安装依赖
+          $j | ConvertTo-Json -Depth 100 |
 
-        run: npm install
+            Set-Content $p -Encoding UTF8
 
-        working-directory: ./source/轻账本_少女手账智能财务版
+      - name: 安装项目依赖
 
-      - name: 编译 EXE
+        shell: pwsh
 
-        run: npm run dist
+        run: |
 
-        working-directory: ./source/轻账本_少女手账智能财务版
+          Set-Location $env:PROJECT_DIR
 
-      - name: 保存编译结果
+          npm install
+
+      - name: 编译 Windows EXE
+
+        shell: pwsh
+
+        run: |
+
+          Set-Location $env:PROJECT_DIR
+
+          npm run dist
+
+      - name: 上传 EXE 文件
 
         uses: actions/upload-artifact@v4
 
@@ -70,4 +118,8 @@ name: 修复安装程序配置
 
           name: 轻账本-Windows-EXE
 
-          path: source/轻账本_少女手账智能财务版/dist/*
+          path: source/**/dist/*
+
+          if-no-files-found: error
+
+          retention-days: 7
